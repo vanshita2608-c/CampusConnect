@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>📅 Events | CampusConnect</title>
+  <style>
+    body {
+      margin: 0;
+      background-color: #0d1117;
+      color: white;
+      font-family: 'Segoe UI', sans-serif;
+    }
+    nav {
+      position: sticky;
+      top: 0;
+      background: #111827;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 15px 30px;
+      border-bottom: 2px solid #3b82f6;
+      z-index: 1000;
+    }
+    nav h1 {
+      color: #facc15;
+      margin: 0;
+    }
+    nav button {
+      background: #3b82f6;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .back-btn {
+      margin: 20px 30px;
+      background: #ec4899;
+      border: none;
+      color: white;
+      padding: 10px 20px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .event-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      padding: 20px;
+      justify-content: center;
+    }
+    .event-card {
+      background: linear-gradient(to bottom right, #1f2937, #111827);
+      border-radius: 15px;
+      padding: 20px;
+      width: 300px;
+      box-shadow: 0 0 15px rgba(168,85,247,0.2);
+      transition: transform 0.2s, box-shadow 0.3s;
+      position: relative;
+    }
+    .event-card.expired {
+      opacity: 0.5;
+      pointer-events: none;
+    }
+    .event-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 0 25px rgba(59, 130, 246, 0.5);
+    }
+    .event-card h3 {
+      color: #3b82f6;
+      margin: 0 0 10px;
+    }
+    .event-card p {
+      margin: 6px 0;
+    }
+    .register-link {
+      display: inline-block;
+      margin-top: 10px;
+      padding: 8px 12px;
+      background: #22c55e;
+      color: white;
+      text-decoration: none;
+      border-radius: 6px;
+      font-weight: bold;
+      transition: background 0.2s;
+    }
+    .register-link:hover {
+      background: #16a34a;
+    }
+    .actions {
+      margin-top: 10px;
+    }
+    .actions button {
+      margin-right: 10px;
+      background: #3b82f6;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      color: white;
+      font-weight: bold;
+    }
+    .actions button.delete {
+      background: #ef4444;
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <h1>📅 CampusConnect Events</h1>
+    <button onclick="location.href='dashboard.html'">Home</button>
+  </nav>
+  <button class="back-btn" onclick="history.back()">⏪ Back</button>
+
+  <div class="event-container" id="eventsContainer">Loading...</div>
+
+  <!-- Firebase Script -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getFirestore, collection, getDocs, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDX8skvo9IQADXT_C6z5ZWZWyaK9l0_3A",
+      authDomain: "campusconnect-e6313.firebaseapp.com",
+      projectId: "campusconnect-e6313",
+      storageBucket: "campusconnect-e6313.appspot.com",
+      messagingSenderId: "1013252797849",
+      appId: "1:1013252797849:web:1bd4dd39b020873e0f4f08"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const container = document.getElementById("eventsContainer");
+
+    async function fetchEvents() {
+      const snapshot = await getDocs(collection(db, "events"));
+      const now = new Date();
+      const isAdmin = sessionStorage.getItem("isEventAdmin") === "true";
+
+      container.innerHTML = "";
+      snapshot.forEach(docSnap => {
+        const ev = docSnap.data();
+        const id = docSnap.id;
+
+        let endTime = ev.time.includes("-") ? ev.time.split("-")[1].trim() : ev.time;
+        const dateTime = new Date(`${ev.date} ${endTime}`);
+        const expired = now > dateTime;
+
+        const card = document.createElement("div");
+        card.className = "event-card" + (expired ? " expired" : "");
+
+        card.innerHTML = `
+          <h3>${ev.title}</h3>
+          <p><strong>Date:</strong> ${ev.date}</p>
+          <p><strong>Time:</strong> ${ev.time}</p>
+          <p><strong>Organizer:</strong> ${ev.organizer || 'N/A'}</p>
+          <p>${ev.description || ''}</p>
+          ${ev.reglink ? `<a href="${ev.reglink}" class="register-link" target="_blank">Register</a>` : ''}
+          ${isAdmin ? `
+            <div class="actions">
+              <button onclick="editEvent('${id}')">✏️ Edit</button>
+              <button class="delete" onclick="deleteEvent('${id}')">🗑️ Delete</button>
+            </div>
+          ` : ''}
+        `;
+
+        container.appendChild(card);
+      });
+    }
+
+    fetchEvents();
+
+    window.editEvent = function(id) {
+      alert("✏️ Edit functionality for event ID: " + id + " is not implemented yet.");
+      // Optional: You can redirect to an edit page or open a modal
+    };
+
+    window.deleteEvent = async function(id) {
+      const confirmDel = confirm("Are you sure you want to delete this event?");
+      if (confirmDel) {
+        try {
+          await deleteDoc(doc(db, "events", id));
+          alert("✅ Event deleted.");
+          fetchEvents();
+        } catch (err) {
+          console.error(err);
+          alert("❌ Failed to delete.");
+        }
+      }
+    };
+  </script>
+
+  <!-- Clear admin session on unload -->
+  <script>
+    window.addEventListener("beforeunload", () => {
+      sessionStorage.removeItem("isEventAdmin");
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>🔐 Admin | CampusConnect</title>
+  <style>
+    body {
+      margin: 0;
+      background: #0d1117;
+      color: white;
+      font-family: 'Segoe UI', sans-serif;
+    }
+    nav {
+      position: sticky;
+      top: 0;
+      background: #111827;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 15px 30px;
+      border-bottom: 2px solid #3b82f6;
+      z-index: 1000;
+    }
+    nav h1 {
+      color: #facc15;
+      margin: 0;
+    }
+    nav button {
+      background: #facc15;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      color: #0d1117;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .back-btn {
+      margin: 20px 30px;
+      background: #ec4899;
+      border: none;
+      color: white;
+      padding: 10px 20px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    form, .event-list {
+      max-width: 700px;
+      margin: 20px auto;
+      background: #111827;
+      padding: 25px;
+      border-radius: 15px;
+      box-shadow: 0 0 15px rgba(168,85,247,0.2);
+    }
+    input, textarea, select {
+      width: 100%;
+      margin: 10px 0;
+      padding: 12px;
+      background: #0d1117;
+      border: 1px solid #3b82f6;
+      border-radius: 8px;
+      color: white;
+    }
+    button.primary {
+      background: linear-gradient(to right, #3b82f6, #ec4899);
+      border: none;
+      padding: 12px 20px;
+      border-radius: 8px;
+      color: white;
+      font-size: 16px;
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+    .event-card {
+      background: #1f2937;
+      padding: 15px;
+      border-radius: 10px;
+      margin-bottom: 12px;
+      box-shadow: 0 0 10px rgba(59,130,246,0.2);
+    }
+    .event-card.expired { opacity: 0.6; }
+    .event-card strong { color: #3b82f6; }
+    .actions button {
+      margin-right: 10px;
+      background: #22c55e;
+      border: none;
+      padding: 8px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      color: white;
+      font-weight: bold;
+    }
+    .actions button.delete {
+      background: #ef4444;
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <h1>🔐 Admin Panel</h1>
+    <button onclick="location.href='dashboard.html'">Home</button>
+  </nav>
+
+  <button class="back-btn" onclick="history.back()">⏪ Back</button>
+
+  <form id="eventForm">
+    <h2 id="formTitle">➕ Add Event</h2>
+    <input type="text" id="title" placeholder="Event Title" required />
+    <input type="date" id="date" required />
+    <input type="text" id="time" placeholder="Time (e.g. 3 PM - 5 PM)" required />
+    <input type="text" id="organizer" placeholder="Organizer" required />
+    <textarea id="description" placeholder="Description" rows="3" required></textarea>
+    <input type="url" id="reglink" placeholder="Registration Link" />
+    <button type="submit" class="primary" id="submitBtn">Add Event</button>
+    <div id="message"></div>
+  </form>
+
+  <div class="event-list">
+    <h2>Manage Existing Events</h2>
+    <div id="eventsContainer">Loading...</div>
+  </div>
+<script>
+  const entered = prompt("Enter admin password:");
+  const EVENT_ADMIN = "Campus@123";
+  const LEARNING_ADMIN = "Learn@123";
+  const RESOURCE_ADMIN = "Resource@123";
+
+  if (entered === EVENT_ADMIN) {
+    document.getElementById("eventForm").style.display = "block";
+    document.querySelector(".event-list").style.display = "block";
+  } else if (entered === LEARNING_ADMIN) {
+    document.getElementById("eventForm").style.display = "none";
+    document.querySelector(".event-list").style.display = "none";
+
+    const learningForm = document.createElement("form");
+    learningForm.id = "learningForm";
+    learningForm.innerHTML = `
+      <h2>📚 Upload Learning Content</h2>
+      <input type="text" id="learnTitle" placeholder="Topic Title" required />
+      <input type="text" id="learnCategory" placeholder="Category (e.g. Web Dev)" required />
+      <select id="learnLevel" required>
+        <option value="" disabled selected>Choose Level</option>
+        <option value="Beginner">Beginner</option>
+        <option value="Intermediate">Intermediate</option>
+        <option value="Advanced">Advanced</option>
+      </select>
+      <input type="url" id="learnVideoLink" placeholder="YouTube Video Link (optional)" />
+      <input type="url" id="learnDriveLink" placeholder="Google Drive Link (optional)" />
+      <input type="file" id="learnVideoFile" accept="video/*" />
+      <input type="file" id="learnPdf" accept=".pdf,.docx" />
+      <button class="primary" type="submit">Upload Content</button>
+      <div id="learnMsg"></div>
+    `;
+    document.body.appendChild(learningForm);
+    } else if (entered === RESOURCE_ADMIN) {
+  document.getElementById("eventForm").style.display = "none";
+  document.querySelector(".event-list").style.display = "none";
+
+  const resourcePanel = document.createElement("div");
+  resourcePanel.className = "event-list";
+  resourcePanel.innerHTML = `
+    <h2>📋 Resource Booking Requests</h2>
+    <div id="resourceBookings">Loading requests...</div>
+  `;
+  document.body.appendChild(resourcePanel);
+
+  const loadRequests = async () => {
+    const {
+      getFirestore,
+      collection,
+      getDocs,
+      updateDoc,
+      doc
+    } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+    const db = getFirestore();
+
+    const snap = await getDocs(collection(db, "resourceBookings"));
+    const container = document.getElementById("resourceBookings");
+    container.innerHTML = "";
+
+    if (snap.empty) {
+      container.innerHTML = "<p>No booking requests yet.</p>";
+      return;
+    }
+
+    snap.forEach(d => {
+      const data = d.data();
+      const div = document.createElement("div");
+      div.className = "event-card";
+      div.innerHTML = `
+        <p><strong>Resource:</strong> ${data.resource}</p>
+        <p><strong>Date:</strong> ${data.bookingDate || data.date}</p>
+        <p><strong>Time:</strong> ${data.startTime || data.timeSlot?.split("-")[0]} to ${data.endTime || data.timeSlot?.split("-")[1]}</p>
+        <p><strong>Reason:</strong> ${data.reason}</p>
+        <p><strong>Requested By:</strong> ${data.studentName || "Unknown"} (${data.studentEmail || data.requestedBy})</p>
+        <p><strong>Status:</strong> 
+          <span style="color: ${
+            data.status === 'approved' ? '#00ff80' : 
+            data.status === 'pending' ? '#ffc107' : 
+            '#ff4c4c'
+          }">${data.status.toUpperCase()}</span>
+        </p>
+
+        ${data.status === 'pending' ? `
+        <div class="actions">
+          <button onclick="handleDecision('${d.id}', 'approved')">✅ Approve</button>
+          <button class="delete" onclick="handleDecision('${d.id}', 'rejected')">❌ Reject</button>
+        </div>` : ''}
+      `;
+      container.appendChild(div);
+    });
+  };
+
+  window.handleDecision = async (id, decision) => {
+    const { getFirestore, updateDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+    const db = getFirestore();
+    await updateDoc(doc(db, "resourceBookings", id), { status: decision });
+    loadRequests();
+  };
+
+  loadRequests();
+}
+else {
+    document.body.innerHTML = "<h2 style='text-align:center; margin-top:50px'>❌ Access Denied</h2>";
+    throw new Error("Not authorized");
+  }
+</script>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import {
+    getFirestore, collection, getDocs, addDoc,
+    deleteDoc, doc, updateDoc
+  } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+  import {
+    getStorage, ref, uploadBytes, getDownloadURL
+  } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyDX8skvo9IQADXT_C6z5ZWZWyaK9l0_3A",
+    authDomain: "campusconnect-e6313.firebaseapp.com",
+    projectId: "campusconnect-e6313",
+    storageBucket: "campusconnect-e6313.appspot.com",
+    messagingSenderId: "1013252797849",
+    appId: "1:1013252797849:web:1bd4dd39b020873e0f4f08"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const storage = getStorage(app);
+
+  // Learning Upload
+  document.addEventListener("submit", async (e) => {
+    if (e.target.id !== "learningForm") return;
+    e.preventDefault();
+
+    const title = document.getElementById("learnTitle").value;
+    const category = document.getElementById("learnCategory").value;
+    const level = document.getElementById("learnLevel").value;
+    const videoLink = document.getElementById("learnVideoLink").value.trim();
+    const driveLink = document.getElementById("learnDriveLink").value.trim();
+    const videoFile = document.getElementById("learnVideoFile").files[0];
+    const pdfFile = document.getElementById("learnPdf").files[0];
+    const msg = document.getElementById("learnMsg");
+
+    if (!videoLink && !driveLink && !videoFile && !pdfFile) {
+      msg.textContent = "⚠️ Provide at least one: video link, drive link, video or pdf";
+      return;
+    }
+
+    msg.textContent = "Uploading...";
+
+    let uploadedVideoURL = "";
+    let uploadedPDFURL = "";
+
+    try {
+      if (videoFile) {
+        const videoRef = ref(storage, `learning_videos/${videoFile.name}`);
+        await uploadBytes(videoRef, videoFile);
+        uploadedVideoURL = await getDownloadURL(videoRef);
+      }
+
+      if (pdfFile) {
+        const pdfRef = ref(storage, `learning_notes/${pdfFile.name}`);
+        await uploadBytes(pdfRef, pdfFile);
+        uploadedPDFURL = await getDownloadURL(pdfRef);
+      }
+
+      await addDoc(collection(db, "learning"), {
+        title, category, level, videoLink, driveLink,
+        uploadedVideoURL, uploadedPDFURL,
+        timestamp: new Date().toISOString()
+      });
+
+      msg.textContent = "✅ Content uploaded!";
+      setTimeout(() => window.location.href = "learning.html", 1000);
+
+    } catch (err) {
+      console.error(err);
+      msg.textContent = "❌ Upload failed.";
+    }
+  });
+
+  // Events Load
+  const form = document.getElementById("eventForm");
+  const msg = document.getElementById("message");
+  const eventsContainer = document.getElementById("eventsContainer");
+  let editingId = null;
+
+  form?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const ev = {
+      title: title.value,
+      date: date.value,
+      time: time.value,
+      organizer: organizer.value,
+      description: description.value,
+      reglink: reglink.value
+    };
+    try {
+      if (editingId) {
+        await updateDoc(doc(db, "events", editingId), ev);
+        msg.textContent = "✅ Updated successfully!";
+      } else {
+        await addDoc(collection(db, "events"), ev);
+        msg.textContent = "✅ Added successfully!";
+      }
+
+      sessionStorage.setItem("isEventAdmin", "true");
+      form.reset();
+      editingId = null;
+      submitBtn.textContent = "Add Event";
+      formTitle.textContent = "➕ Add Event";
+
+      setTimeout(() => window.location.href = "events.html", 1000);
+    } catch (err) {
+      msg.textContent = "❌ Something went wrong.";
+      console.error(err);
+    }
+  });
+
+  async function loadEvents() {
+    const snap = await getDocs(collection(db, "events"));
+    eventsContainer.innerHTML = "";
+    snap.forEach(d => {
+      const ev = d.data(), id = d.id;
+      const card = document.createElement("div");
+      card.className = "event-card" + (!isNaN(Date.parse(ev.date + " " + ev.time.split("-")[1].trim())) && new Date() > new Date(ev.date + " " + ev.time.split("-")[1].trim()) ? " expired" : "");
+      card.innerHTML = `
+        <strong>${ev.title}</strong>
+        <small>${ev.date} | ${ev.time}</small>
+        <div class="actions">
+          <button onclick="editEvent('${id}')">✏️ Edit</button>
+          <button class="delete" onclick="deleteEvent('${id}')">🗑️ Delete</button>
+        </div>
+      `;
+      eventsContainer.appendChild(card);
+    });
+  }
+
+  window.editEvent = function(id) {
+    editingId = id;
+    const ev = Array.from(eventsContainer.children).find(c => c.querySelector(`[onclick*="${id}"]`));
+    title.value = ev.querySelector("strong").innerText;
+    const sm = ev.querySelector("small").innerText.split(" | ");
+    date.value = sm[0];
+    time.value = sm[1];
+    organizer.value = "";
+    description.value = "";
+    reglink.value = "";
+    submitBtn.textContent = "Update Event";
+    formTitle.textContent = "✏️ Edit Event";
+    msg.textContent = "";
+  };
+
+  window.deleteEvent = async function(id) {
+    if (confirm("Delete this event?")) {
+      await deleteDoc(doc(db, "events", id));
+      loadEvents();
+    }
+  };
+
+  loadEvents();
+</script>
+</body>
+</html>

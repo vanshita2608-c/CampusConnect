@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>📍 Book Resource | CampusConnect</title>
+  <style>
+    body {
+      margin: 0;
+      background: #0d1117;
+      color: white;
+      font-family: 'Segoe UI', sans-serif;
+    }
+    header {
+      background: #facc15;
+      color: #0d1117;
+      padding: 15px 30px;
+      font-size: 22px;
+      font-weight: bold;
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+    }
+    .back-btn {
+      margin: 20px;
+      background: #ec4899;
+      border: none;
+      color: white;
+      padding: 10px 20px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .map-container {
+      position: relative;
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+    .campus-map {
+      width: 100%;
+      border-radius: 10px;
+      display: block;
+    }
+    .marker {
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      cursor: pointer;
+      border: 2px solid white;
+    }
+    .available { background-color: #22c55e; }
+    .pending { background-color: #facc15; }
+    .booked { background-color: #ef4444; }
+
+    .modal {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: #111827;
+      padding: 30px;
+      border-radius: 12px;
+      display: none;
+      z-index: 2000;
+      box-shadow: 0 0 20px rgba(250,204,21,0.4);
+    }
+
+    .modal input, .modal textarea {
+      width: 100%;
+      padding: 10px;
+      margin: 10px 0;
+      background: #0d1117;
+      border: 1px solid #3b82f6;
+      color: white;
+      border-radius: 8px;
+    }
+    .modal button {
+      background: #3b82f6;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 8px;
+      color: white;
+      cursor: pointer;
+    }
+    .overlay {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0,0,0,0.7);
+      display: none;
+      z-index: 1000;
+    }
+  </style>
+</head>
+<body>
+  <header>📍 Book a Campus Resource</header>
+  <button class="back-btn" onclick="history.back()">⏪ Back</button>
+
+  <div class="map-container">
+    <img src="campus-map.png" class="campus-map" alt="Campus Map" />
+    <!-- Markers (positions are approximate, adjust as per map) -->
+    <div class="marker available" style="top: 20%; left: 25%;" data-name="Classroom 21"></div>
+    <div class="marker booked" style="top: 30%; left: 65%;" data-name="Library"></div>
+    <div class="marker pending" style="top: 42%; left: 40%;" data-name="Seminar Hall A"></div>
+    <div class="marker available" style="top: 50%; left: 70%;" data-name="Canteen"></div>
+    <div class="marker booked" style="top: 60%; left: 20%;" data-name="Lab 5"></div>
+    <div class="marker available" style="top: 70%; left: 50%;" data-name="Classroom 31"></div>
+    <!-- Add more markers as needed -->
+  </div>
+
+  <div class="overlay" id="overlay"></div>
+
+  <div class="modal" id="bookingModal">
+    <h3 id="modalTitle">Book Resource</h3>
+    <form id="bookingForm">
+      <input type="text" id="studentName" placeholder="Your Name" required />
+      <input type="email" id="studentEmail" placeholder="Your Email" required />
+      <input type="text" id="resourceName" readonly />
+      <input type="date" id="bookingDate" required />
+      <input type="text" id="startTime" placeholder="Start Time (e.g. 10:00 AM)" required />
+      <input type="text" id="endTime" placeholder="End Time (e.g. 11:00 AM)" required />
+      <textarea id="reason" rows="3" placeholder="Reason for booking..." required></textarea>
+      <button type="submit">Submit Booking</button>
+    </form>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import {
+      getFirestore,
+      collection,
+      addDoc,
+      getDocs,
+      query,
+      where
+    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDX8skvo9IQADXT_C6z5ZWZWyaK9l0_3A",
+      authDomain: "campusconnect-e6313.firebaseapp.com",
+      projectId: "campusconnect-e6313",
+      storageBucket: "campusconnect-e6313.appspot.com",
+      messagingSenderId: "1013252797849",
+      appId: "1:1013252797849:web:1bd4dd39b020873e0f4f08"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const bookingsRef = collection(db, "resourceBookings");
+
+    const modal = document.getElementById("bookingModal");
+    const overlay = document.getElementById("overlay");
+    const form = document.getElementById("bookingForm");
+    const resourceNameInput = document.getElementById("resourceName");
+
+    document.querySelectorAll(".marker").forEach(marker => {
+      marker.addEventListener("click", () => {
+        const resource = marker.dataset.name;
+        if (marker.classList.contains("booked")) {
+          alert("❌ This resource is already booked.");
+          return;
+        }
+        resourceNameInput.value = resource;
+        modal.style.display = "block";
+        overlay.style.display = "block";
+      });
+    });
+
+    overlay.addEventListener("click", () => {
+      modal.style.display = "none";
+      overlay.style.display = "none";
+      form.reset();
+    });
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const resource = resourceNameInput.value;
+      const date = document.getElementById("bookingDate").value;
+      const start = document.getElementById("startTime").value;
+      const end = document.getElementById("endTime").value;
+      const email = document.getElementById("studentEmail").value;
+      const name = document.getElementById("studentName").value;
+      const reason = document.getElementById("reason").value;
+
+      // check for overlap
+      const q = query(bookingsRef,
+        where("resource", "==", resource),
+        where("bookingDate", "==", date)
+      );
+      const snap = await getDocs(q);
+      let conflict = false;
+
+      snap.forEach(doc => {
+        const data = doc.data();
+        if (
+          (start >= data.startTime && start < data.endTime) ||
+          (end > data.startTime && end <= data.endTime) ||
+          (start <= data.startTime && end >= data.endTime)
+        ) {
+          conflict = true;
+        }
+      });
+
+      if (conflict) {
+        alert("⛔ This slot overlaps with an existing booking!");
+        return;
+      }
+
+      await addDoc(bookingsRef, {
+        resource,
+        bookingDate: date,
+        startTime: start,
+        endTime: end,
+        requestedBy: email,
+        studentName: name,
+        reason,
+        status: "pending",
+        timestamp: new Date().toISOString()
+      });
+
+      alert("✅ Booking requested! You'll be notified once approved.");
+      modal.style.display = "none";
+      overlay.style.display = "none";
+      form.reset();
+    });
+  </script>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import {
+      getFirestore,
+      collection,
+      getDocs
+    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDX8skvo9IQADXT_C6z5ZWZWyaK9l0_3A",
+      authDomain: "campusconnect-e6313.firebaseapp.com",
+      projectId: "campusconnect-e6313",
+      storageBucket: "campusconnect-e6313.appspot.com",
+      messagingSenderId: "1013252797849",
+      appId: "1:1013252797849:web:1bd4dd39b020873e0f4f08"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    const bookingsRef = collection(db, "resourceBookings");
+    const today = new Date().toISOString().split("T")[0];
+
+    const markers = document.querySelectorAll(".marker");
+
+    const bookingData = await getDocs(bookingsRef);
+    const currentBookings = {};
+
+    bookingData.forEach(doc => {
+      const b = doc.data();
+      if (b.bookingDate !== today) return;
+      const key = b.resource;
+
+      if (!currentBookings[key]) currentBookings[key] = [];
+      currentBookings[key].push({
+        start: b.startTime,
+        end: b.endTime,
+        status: b.status
+      });
+    });
+
+    const now = new Date();
+    const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+
+    markers.forEach(m => {
+      const resource = m.dataset.name;
+      const bookings = currentBookings[resource] || [];
+
+      let status = "available";
+
+      bookings.forEach(b => {
+        if (
+          (currentTime >= b.start && currentTime < b.end) ||
+          (currentTime < b.end && currentTime >= b.start)
+        ) {
+          if (b.status === "approved") status = "booked";
+          else if (b.status === "pending") status = "pending";
+        }
+      });
+
+      m.classList.remove("available", "pending", "booked");
+      m.classList.add(status);
+    });
+  </script>
+
+</body>
+</html>

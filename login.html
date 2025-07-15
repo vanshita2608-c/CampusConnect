@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>CampusConnect - Login</title>
+  <style>
+    body {
+      background-color: #0d1117;
+      color: #fff;
+      font-family: 'Segoe UI', sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .login-box {
+      background: linear-gradient(145deg, #111827, #1f2937);
+      padding: 40px;
+      border-radius: 15px;
+      box-shadow: 0 0 20px rgba(59, 130, 246, 0.5);
+      text-align: center;
+    }
+
+    .login-box h2 {
+      color: #facc15;
+      margin-bottom: 25px;
+    }
+
+    button {
+      background: linear-gradient(to right, #3b82f6, #ec4899);
+      color: white;
+      padding: 12px 24px;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: transform 0.2s ease-in-out;
+    }
+
+    button:hover {
+      transform: scale(1.05);
+      box-shadow: 0 0 10px #3b82f6;
+    }
+  </style>
+</head>
+<body>
+  <div class="login-box">
+    <h2>CampusConnect Login</h2>
+    <button id="loginBtn">Sign in with Google</button>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
+    import { getAuth, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
+    import { getFirestore, collection, addDoc, getDocs, query, where } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDX8skvo9IQADXT_CV6z5ZWZWyaK9l0_3A",
+      authDomain: "campusconnect-e6313.firebaseapp.com",
+      projectId: "campusconnect-e6313",
+      storageBucket: "campusconnect-e6313.appspot.com",
+      messagingSenderId: "1013252797849",
+      appId: "1:1013252797849:web:1bd4dd39b020873e0f4f08"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+
+    document.getElementById("loginBtn").addEventListener("click", async () => {
+      try {
+        const result = await signInWithPopup(auth, provider);
+        const user = result.user;
+
+        const q = query(collection(db, "users"), where("email", "==", user.email));
+        const snapshot = await getDocs(q);
+
+        if (snapshot.empty) {
+          await addDoc(collection(db, "users"), {
+            name: user.displayName,
+            email: user.email,
+            timestamp: new Date().toISOString()
+          });
+        }
+
+        window.location.href = "dashboard.html";
+      } catch (error) {
+        console.error("Sign-in failed:", error);
+        alert("Login failed. Try again.");
+      }
+    });
+  </script>
+</body>
+</html>

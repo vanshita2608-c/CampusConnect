@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>📍 Resource Booking | CampusConnect</title>
+  <style>
+    body { font-family: sans-serif; margin:0; padding:0; }
+    #map { height: 60vh; width:100%; }
+    #requests { padding:20px; max-width:600px; margin:auto; }
+    .req { background:#f4f4f4; margin-bottom:10px; padding:10px; border-radius:5px; }
+  </style>
+  <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_JS_API_KEY"></script>
+</head>
+<body>
+  <h1>Resource Booking</h1>
+  <div id="map"></div>
+
+  <h2>My Booking Requests</h2>
+  <div id="requests">Loading your requests…</div>
+
+  <script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import { getFirestore, collection, addDoc, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+  import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+  const firebaseConfig = { /* your config */ };
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const auth = getAuth(app);
+
+  let currentUserEmail = null;
+  onAuthStateChanged(auth, user => {
+    if (user) {
+      currentUserEmail = user.email;
+      initMap();
+      loadMyRequests();
+    } else {
+      document.body.innerHTML = "<p>Please login to book resources.</p>";
+    }
+  });
+
+  function initMap() {
+    const map = new google.maps.Map(document.getElementById('map'), {
+      center: { lat: 21.0, lng: 78.0 },
+      zoom: 16
+    });
+    const resources = [
+      { name: "Seminar Hall A", pos:{lat:21.001, lng:78.001} },
+      { name: "Lab 1", pos:{lat:21.002, lng:78.002} }
+    ];
+    resources.forEach(r => {
+      const marker = new google.maps.Marker({ map, position: r.pos, title: r.name });
+      marker.addListener('click', () => promptBooking(r.name));
+    });
+  }
+
+  async function promptBooking(resource) {
+    const date = prompt("Enter booking date (YYYY-MM-DD):");
+    const time = prompt("Time slot (e.g. 10:00-11:00):");
+    const reason = prompt("Why do you need it?");
+    if (date && time && reason) {
+      await addDoc(collection(db, "resourceRequests"), {
+        resource, date, timeSlot: time, reason, requestedBy: currentUserEmail,
+        status: "pending", timestamp: new Date().toISOString()
+      });
+      alert("✅ Request submitted.");
+      loadMyRequests();
+    }
+  }
+
+  async function loadMyRequests() {
+    const reqDiv = document.getElementById("requests");
+    reqDiv.innerHTML = "Loading…";
+    const q = query(collection(db, "resourceRequests"), where("requestedBy","==",currentUserEmail));
+    const snap = await getDocs(q);
+    reqDiv.innerHTML = "";
+    if (snap.empty) reqDiv.innerHTML = "<p>No requests yet.</p>";
+    snap.forEach(docSnap => {
+      const d = docSnap.data();
+      const div = document.createElement('div');
+      div.className = "req";
+      div.innerHTML = `<p><strong>${d.resource}</strong> | ${d.date} @ ${d.timeSlot}</p>
+        <p>Status: <em>${d.status}</em></p>`;
+      reqDiv.appendChild(div);
+    });
+  }
+  </script>
+</body>
+</html>
